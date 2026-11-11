@@ -1,0 +1,49 @@
+{
+  "name": "mini-browser-mcp",
+  "version": "0.5.3",
+  "description": "Small local MCP server that reads and controls your browser through a companion extension.",
+  "license": "MIT",
+  "author": "Arhenniuss",
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "browser-automation",
+    "browser",
+    "claude",
+    "claude-code",
+    "modelcontextprotocol",
+    "chrome-extension",
+    "web-automation"
+  ],
+  "type": "module",
+  "main": "server.js",
+  "bin": {
+    "mini-browser-mcp": "server.js"
+  },
+  "files": [
+    "server.js",
+    "extension/",
+    "build.py",
+    "test.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ayusman-Singhal/mini-browser-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Ayusman-Singhal/mini-browser-mcp/issues"
+  },
+  "homepage": "https://github.com/Ayusman-Singhal/mini-browser-mcp#readme",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Mini Browser MCP",
+  "version": "0.5.3",
+  "description": "Lets a local MCP server on 127.0.0.1 read and control this browser.",
+  "permissions": ["tabs", "scripting", "alarms", "storage", "debugger"],
+  "host_permissions": ["<all_urls>"],
+  "incognito": "not_allowed",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src ws://127.0.0.1:*"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
+  },
+  "action": {
+    "default_title": "Mini Browser MCP"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "mini-browser-mcp@local",
+      "strict_min_version": "121.0",
+      "data_collection_permissions": {
+        "required": ["websiteContent", "browsingActivity"]
+      }
+    }
+  }
+}
