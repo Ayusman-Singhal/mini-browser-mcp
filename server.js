@@ -147,6 +147,8 @@ function savePins(list) {
 
 const EXT_ORIGIN = /^(chrome|moz)-extension:\/\/[a-z0-9-]+$/i;
 
+const lastRefusal = new Map();
+
 function allowOrigin(origin) {
   // Web pages send an http(s) Origin and are refused.
   if (!EXT_ORIGIN.test(origin || '')) return false;
@@ -178,7 +180,18 @@ wss.on('error', (e) => {
 });
 
 wss.on('connection', (ws, req) => {
-  if (ext) ext.close(1000, 'replaced');
+  // Sticky connection: the extension that connected first owns the session.
+  // Browsers retry every few seconds, so replacing the live connection would
+  // make two running browsers fight over it (and lose the agent-tab state).
+  if (ext && ext.readyState === 1) {
+    const last = lastRefusal.get(req.headers.origin);
+    if (!last || Date.now() - last > 60000) {
+      lastRefusal.set(req.headers.origin, Date.now());
+      log(`refused ${req.headers.origin}: another extension is already connected. It can take over once that one disconnects.`);
+    }
+    ws.close(4000, 'another extension connected');
+    return;
+  }
   ext = ws;
   log('extension connected:', req.headers.origin);
   ws.on('message', (data) => {

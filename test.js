@@ -67,6 +67,18 @@ await sleep(200);
 const tabs = await rpc('tools/call', { name: 'tabs_list', arguments: {} });
 check(/x\.test/.test(tabs.result?.content?.[0]?.text), 'tabs_list relayed');
 
+// A second extension must be refused while one is connected (no connection fighting).
+const secondAnswered = await new Promise((res) => {
+  const second = new WebSocket(`ws://127.0.0.1:${PORT}`, { origin: 'moz-extension://def' });
+  second.on('message', () => res(true));
+  second.on('open', () => second.send(JSON.stringify({ id: 999, method: 'tabs_list' })));
+  second.on('error', () => res(false));
+  setTimeout(() => res(false), 2000);
+});
+await sleep(200);
+const still = await rpc('tools/call', { name: 'tabs_list', arguments: {} });
+check(!secondAnswered && !still.result?.isError, 'second extension refused, original keeps the session');
+
 const shot = await rpc('tools/call', { name: 'screenshot', arguments: {} });
 check(shot.result?.content?.[0]?.type === 'image' && shot.result.content[0].data === 'QUJD', 'screenshot becomes image content');
 
