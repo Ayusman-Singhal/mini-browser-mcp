@@ -38,6 +38,13 @@ await sleep(500);
 
 const init = await rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '0' } });
 check(init.result?.serverInfo?.name === 'mini-browser', 'initialize');
+check(init.result?.protocolVersion === '2025-06-18', 'protocol version echoed');
+
+const older = await rpc('initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 't', version: '0' } });
+check(older.result?.protocolVersion === '2025-03-26', 'older supported version echoed');
+
+const unknown = await rpc('initialize', { protocolVersion: '2099-01-01', capabilities: {}, clientInfo: { name: 't', version: '0' } });
+check(unknown.result?.protocolVersion === '2025-06-18', 'unsupported version falls back');
 
 const list = await rpc('tools/list', {});
 check(list.result?.tools?.length === 10, `tools/list (${list.result?.tools?.length} tools)`);

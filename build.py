@@ -19,6 +19,15 @@ DIST = ROOT / 'dist'
 base = json.loads((SRC / 'manifest.json').read_text(encoding='utf8'))
 version = base['version']
 
+# The npm package and the extension move together; a silent drift caused
+# mismatched releases before (0.5.0 vs 0.5.3).
+pkg_version = json.loads((ROOT / 'package.json').read_text(encoding='utf8')).get('version')
+if pkg_version != version:
+    raise SystemExit(
+        f'version mismatch: extension/manifest.json is {version} '
+        f'but package.json is {pkg_version}. Bump both together.'
+    )
+
 
 def firefox(m):
     m = json.loads(json.dumps(m))

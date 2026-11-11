@@ -1,6 +1,6 @@
 {
   "name": "mini-browser-mcp",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "Small local MCP server that reads and controls your browser through a companion extension.",
   "license": "MIT",
   "author": "Arhenniuss",
