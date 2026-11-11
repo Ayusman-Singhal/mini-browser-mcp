@@ -14,6 +14,10 @@ Claude Code  --stdio-->  server.js  --ws://127.0.0.1:8765-->  extension (backgro
 Works in Chrome, Edge, Brave, Opera, Vivaldi and Arc (any Chromium browser). Firefox 121+ works
 too (see below). Safari is not supported.
 
+<p align="center">
+  <img src="docs/demo.gif" alt="Mini Browser MCP searching Wikipedia: opens its own window, types a query, refuses to submit without the user's confirm, then submits and reads the result" width="880">
+</p>
+
 ## Why
 
 Browser-automation MCPs usually run a separate, logged-out browser: you have to sign in to every
