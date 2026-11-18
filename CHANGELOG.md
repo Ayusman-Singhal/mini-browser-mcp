@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.5
+
+- Every tool now declares MCP tool annotations: `title`, `readOnlyHint`, `destructiveHint`,
+  `idempotentHint` and `openWorldHint`, set to match real behaviour (so hosts can warn before
+  invoking destructive tools like `tab_close`).
+- Tests moved to `tests/server.test.js` and extended to 24 checks: every declared tool is now
+  exercised end to end through the relay, and the annotations are asserted.
+- README: npx quick start, comparison table, star call-to-action.
+
 ## 0.5.4
 
 - Sticky extension connection: the first browser to connect owns the session. A second
