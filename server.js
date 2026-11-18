@@ -37,26 +37,31 @@ const TOOLS = [
   {
     name: 'tabs_list',
     description: 'List the agent\'s own tabs (id, title, url). The user\'s other tabs are never visible.',
+    annotations: { title: 'List agent tabs', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     inputSchema: { type: 'object', properties: {} },
   },
   {
     name: 'tab_open',
     description: 'Open a URL in a new agent tab (in the agent\'s own window) and wait for it to load.',
+    annotations: { title: 'Open tab', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     inputSchema: { type: 'object', properties: { url: { type: 'string' } }, required: ['url'] },
   },
   {
     name: 'tab_close',
     description: 'Close a tab.',
+    annotations: { title: 'Close tab', readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     inputSchema: { type: 'object', properties: { tabId }, required: ['tabId'] },
   },
   {
     name: 'navigate',
     description: 'Load a URL in a tab and wait for it. Use "back" or "forward" for history.',
+    annotations: { title: 'Navigate tab', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     inputSchema: { type: 'object', properties: { tabId, url: { type: 'string' } }, required: ['url'] },
   },
   {
     name: 'page_text',
     description: 'Get the visible text of a page. Use offset to read long pages in parts.',
+    annotations: { title: 'Read page text', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     inputSchema: {
       type: 'object',
       properties: {
@@ -69,6 +74,7 @@ const TOOLS = [
   {
     name: 'page_elements',
     description: 'List visible interactive elements (links, buttons, inputs) with numbers. Use the numbers with click and type.',
+    annotations: { title: 'List page elements', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     inputSchema: {
       type: 'object',
       properties: { tabId, maxItems: { type: 'number', description: 'Default 200.' } },
@@ -77,11 +83,13 @@ const TOOLS = [
   {
     name: 'click',
     description: 'Click an element by index, selector or visible text. Submit-like buttons (join, submit, pay, delete...) are blocked unless confirm is true.',
+    annotations: { title: 'Click element', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     inputSchema: { type: 'object', properties: { tabId, ...target, confirm } },
   },
   {
     name: 'type',
     description: 'Type text into an input, textarea or editable element.',
+    annotations: { title: 'Type text', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     inputSchema: {
       type: 'object',
       properties: {
@@ -99,6 +107,7 @@ const TOOLS = [
   {
     name: 'scroll',
     description: 'Scroll the page.',
+    annotations: { title: 'Scroll page', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     inputSchema: {
       type: 'object',
       properties: {
@@ -112,6 +121,7 @@ const TOOLS = [
   {
     name: 'screenshot',
     description: 'Screenshot an agent tab, including embedded frames. Works when the window is hidden.',
+    annotations: { title: 'Screenshot tab', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     inputSchema: {
       type: 'object',
       properties: {

@@ -21,7 +21,7 @@ temporary add-on) and test against a real browser session.
 | `server.js` | MCP server (JSON-RPC over stdio) + WebSocket bridge on 127.0.0.1 |
 | `extension/background.js` | Extension: connects to the server, runs commands, enforces guard rails |
 | `extension/manifest.json` | Source manifest; `build.py` splits it into Firefox and Chrome variants |
-| `test.js` | Smoke test that fakes the extension end-to-end |
+| `tests/server.test.js` | Smoke test that fakes the extension end-to-end |
 | `build.py` | Builds `dist/` (.xpi for Firefox, .zip for Chrome) |
 
 ## Guidelines

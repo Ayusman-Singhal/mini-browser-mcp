@@ -19,6 +19,17 @@ too (see below). Safari is not supported.
   <img src="docs/demo.gif" alt="Mini Browser MCP searching Wikipedia: opens its own window, types a query, refuses to submit without the user's confirm, then submits and reads the result" width="880">
 </p>
 
+<p align="center">⭐ If this project is useful, please star the repo — it helps others find it!</p>
+
+## Quick start
+
+```
+claude mcp add -s user mini-browser -- npx -y mini-browser-mcp
+```
+
+Then load the extension (step 3 of [Setup](#setup) below) and start a new Claude Code session.
+Prefer running from source? Full instructions are in Setup.
+
 ## Why
 
 Browser-automation MCPs usually run a separate, logged-out browser: you have to sign in to every
@@ -69,6 +80,21 @@ When `tabId` is left out, the tool uses the active tab.
    - **Chrome build without Firefox keys:** `dist/chrome/` (Load unpacked) or the `-chrome.zip`.
 4. Start a new Claude Code session. The extension icon shows a green **ON** badge once the server
    is running and connected. It retries every 30 seconds; click the icon to retry now.
+
+## How it compares
+
+| | **Mini Browser MCP** | Playwright / Puppeteer MCP | browser-use style agents |
+|---|---|---|---|
+| Browser | **Your own, already logged in** | Fresh automation browser | Separate profile |
+| Logins & cookies | ✅ your existing sessions | ❌ sign in again everywhere | ⚠️ depends on profile |
+| CAPTCHA / bot checks | Detected → pauses and asks you | You solve it in the automation window | Usually manual |
+| Guard rails | Enforced by the extension (agent tabs only, submit/confirm, no passwords) | Full control, no guard rails | Policy layer in the agent |
+| Runs where | Local, `127.0.0.1` only | Local or remote | Local |
+| Install | npm + one extension | npm | Python + npm |
+
+The trade-off: automation frameworks are more flexible and run headless on servers;
+Mini Browser MCP is for **letting an agent work inside the browser you actually use**,
+safely. The two complement each other.
 
 ## Guard rails (enforced by the extension)
 
