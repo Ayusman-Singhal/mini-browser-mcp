@@ -3,6 +3,7 @@
 [![CI](https://github.com/Ayusman-Singhal/mini-browser-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Ayusman-Singhal/mini-browser-mcp/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%E2%89%A518-blue.svg)](package.json)
+[![M8ven Score](https://m8ven.ai/badge/mcp/ayusman-singhal-mini-browser-mcp-1a4a07?v=e05c1734d93580d8cf66c3e160940775)](https://m8ven.ai/mcp/ayusman-singhal-mini-browser-mcp-1a4a07?s=readme)
 
 A small local MCP server plus a browser extension. It lets Claude Code (or any MCP client) read
 and control your normal browser, with your logins.
