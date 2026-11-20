@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.6
+
+- Several browsers at once: every browser running the extension stays connected. One is in
+  control (badge ON), the others wait on standby (badge WAIT) instead of retrying and failing.
+  A later browser never takes over a running session by itself.
+- New toolbar popup: shows which browser is in control, with **Control this browser** and
+  **Let the other browser control** buttons, plus site-access and retry buttons.
+- New tools `browsers_list` and `browser_select` so the agent can switch browsers on request.
+  A browser on standby refuses commands.
+- New tool `upload_file`: attaches local files to a page's file input (for example a video
+  upload) through the DevTools protocol. Blocked unless `confirm: true`; the server checks the
+  paths exist and are absolute first. Chromium browsers only.
+- `page_elements` and text clicks now include radio buttons, checkboxes and switches (`role=radio`, `role=checkbox`, `role=switch`, native inputs), so forms like YouTube Studio's work.
+- Tests extended to 31 checks covering standby, switching, release and the new tools.
+
 ## 0.5.5
 
 - Every tool now declares MCP tool annotations: `title`, `readOnlyHint`, `destructiveHint`,

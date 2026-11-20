@@ -39,12 +39,43 @@ let ws = null;
 let pingTimer = null;
 
 let connected = false;
+// Several browsers can run the extension at once. The server puts one in control and the rest
+// on standby; it tells us which with {"type":"state"} messages.
+let active = false;
+let myId = null;
+let others = [];
+
+async function browserName() {
+  try { if (navigator.brave && await navigator.brave.isBrave()) return 'Brave'; } catch {}
+  const ua = navigator.userAgent;
+  if (/\bZen\b/i.test(ua)) return 'Zen';
+  if (FF) return 'Firefox';
+  const brands = (navigator.userAgentData?.brands || []).map((b) => b.brand);
+  if (brands.includes('Microsoft Edge') || /Edg\//.test(ua)) return 'Edge';
+  if (brands.includes('Opera') || /OPR\//.test(ua)) return 'Opera';
+  if (brands.includes('Vivaldi') || /Vivaldi/.test(ua)) return 'Vivaldi';
+  return 'Chrome';
+}
+
+function notifyPopup() {
+  chrome.runtime.sendMessage({ cmd: 'state-changed' }).catch(() => {}); // fails when no popup is open
+}
 
 async function setBadge(on = connected) {
   connected = on;
   if (!on) {
+    active = false;
+    others = [];
     chrome.action.setBadgeText({ text: '' });
     chrome.action.setTitle({ title: 'Mini Browser MCP: waiting for server' });
+    notifyPopup();
+    return;
+  }
+  notifyPopup();
+  if (!active) {
+    chrome.action.setBadgeText({ text: 'WAIT' });
+    chrome.action.setBadgeBackgroundColor({ color: '#6e7781' });
+    chrome.action.setTitle({ title: 'Mini Browser MCP: standby, another browser is in control. Click to switch.' });
     return;
   }
   if (await hasSiteAccess()) {
@@ -65,7 +96,8 @@ function connect() {
   } catch {
     return;
   }
-  ws.onopen = () => {
+  ws.onopen = async () => {
+    ws.send(JSON.stringify({ type: 'hello', name: await browserName() }));
     setBadge(true);
     clearInterval(pingTimer);
     // WebSocket traffic keeps the Chrome service worker alive. Firefox and Zen suspend idle
@@ -78,6 +110,18 @@ function connect() {
   ws.onmessage = async (ev) => {
     let msg;
     try { msg = JSON.parse(ev.data); } catch { return; }
+    if (msg.type === 'state') {
+      active = msg.active === true;
+      myId = msg.id ?? null;
+      others = Array.isArray(msg.others) ? msg.others : [];
+      setBadge(true);
+      return;
+    }
+    if (msg.type) return;
+    if (!active) {
+      ws.send(JSON.stringify({ id: msg.id, error: 'This browser is on standby; another browser is in control.' }));
+      return;
+    }
     try {
       const result = await run(msg.method, msg.params || {});
       ws.send(JSON.stringify({ id: msg.id, result }));
@@ -98,10 +142,30 @@ chrome.alarms.create('reconnect', { periodInMinutes: 0.5 });
 chrome.alarms.onAlarm.addListener(connect);
 chrome.runtime.onStartup.addListener(connect);
 chrome.runtime.onInstalled.addListener(connect);
-chrome.action.onClicked.addListener(() => {
-  // Ask for site access first: Firefox only shows the prompt inside the click handler.
-  chrome.permissions.request(ALL_SITES).catch(() => false).then(() => setBadge());
-  connect();
+// The toolbar popup (popup.html) shows the status and lets the user pick which browser is in control.
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (sender.id !== chrome.runtime.id) return false;
+  const send = (m) => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m)); };
+  (async () => {
+    switch (msg?.cmd) {
+      case 'status':
+        return { connected, active, id: myId, others, name: await browserName(), siteAccess: await hasSiteAccess() };
+      case 'activate':
+        connect();
+        send({ type: 'activate' });
+        return { ok: true };
+      case 'release':
+        send({ type: 'release' });
+        return { ok: true };
+      case 'reconnect':
+        connect();
+        setBadge();
+        return { ok: true };
+      default:
+        return null;
+    }
+  })().then(sendResponse, () => sendResponse(null));
+  return true; // answer asynchronously
 });
 chrome.permissions.onAdded?.addListener(() => setBadge());
 chrome.permissions.onRemoved?.addListener(() => setBadge());
@@ -258,6 +322,34 @@ async function debuggerShot(tabId, fullPage) {
   }
 }
 
+// Attach local files to a file input through the DevTools protocol (DOM.setFileInputFiles).
+// The page gets normal input/change events, as if the user picked the files.
+async function debuggerUpload(tabId, selector, files) {
+  const target = { tabId };
+  await chrome.debugger.attach(target, '1.3');
+  try {
+    const send = (method, params) => chrome.debugger.sendCommand(target, method, params);
+    await send('DOM.enable');
+    const { result } = await send('Runtime.evaluate', {
+      expression: `document.querySelector(${JSON.stringify(selector)})`,
+      returnByValue: false,
+    });
+    if (!result || !result.objectId || result.subtype === 'null') {
+      throw new Error(`No element matches ${selector} in the top frame`);
+    }
+    const { result: kind } = await send('Runtime.callFunctionOn', {
+      objectId: result.objectId,
+      functionDeclaration: 'function () { return this.tagName + ":" + (this.type || ""); }',
+      returnByValue: true,
+    });
+    if (kind?.value !== 'INPUT:file') throw new Error(`${selector} is ${kind?.value}, not a file input`);
+    await send('DOM.setFileInputFiles', { files, objectId: result.objectId });
+    return `attached ${files.length} file(s) to ${selector}: ${files.map((f) => f.split(/[\\/]/).pop()).join(', ')}`;
+  } finally {
+    await chrome.debugger.detach(target).catch(() => {});
+  }
+}
+
 // Firefox / Zen: tabs.captureTab works on background tabs and can capture the full page.
 async function firefoxShot(tabId, fullPage) {
   const opts = { format: 'jpeg', quality: 70 };
@@ -279,7 +371,7 @@ const captchaNote = (c) =>
 
 // ---------- Commands ----------
 
-const NEEDS_SITE_ACCESS = new Set(['page_text', 'page_elements', 'click', 'type', 'scroll', 'screenshot']);
+const NEEDS_SITE_ACCESS = new Set(['page_text', 'page_elements', 'click', 'type', 'scroll', 'screenshot', 'upload_file']);
 
 async function run(method, p) {
   if (NEEDS_SITE_ACCESS.has(method)) await requireSiteAccess();
@@ -379,6 +471,18 @@ async function run(method, p) {
       const res = await inFrames(tab.id, 'scroll', p);
       return res.map((r) => r.result).filter((s) => typeof s === 'string' && !s.startsWith('nothing')).join('\n') || 'nothing to scroll';
     }
+    case 'upload_file': {
+      if (p.confirm !== true) {
+        throw new Error('BLOCKED: uploading sends local files to the website. Ask the user in chat; ' +
+          'only after they say yes, repeat the call with confirm: true.');
+      }
+      if (!chrome.debugger) throw new Error('upload_file needs a Chromium browser (Chrome, Edge, Brave).');
+      const tab = await getTab(p.tabId);
+      await assertNoCaptcha(tab.id);
+      const r = await debuggerUpload(tab.id, p.selector || 'input[type=file]', p.paths || []);
+      await sleep(800);
+      return r;
+    }
     case 'screenshot': {
       const tab = await getTab(p.tabId);
       // First choice: DevTools protocol. Works when the window is hidden and can capture the full page.
@@ -457,7 +561,7 @@ function pageAction(action, opts) {
     // Text matches, best first: exact label, then label starting with the text, then containing it.
     const textHits = () => {
       const t = opts.text.toLowerCase().trim();
-      const sel = 'a,button,[role=button],[role=link],[role=tab],[role=menuitem],summary,label,input[type=submit],input[type=button]';
+      const sel = 'a,button,[role=button],[role=link],[role=tab],[role=menuitem],summary,label,input[type=submit],input[type=button],[role=radio],[role=checkbox],[role=switch],input[type=radio],input[type=checkbox]';
       return [...document.querySelectorAll(sel)]
         .filter((e) => visible(e))
         .map((el) => {
@@ -505,7 +609,7 @@ function pageAction(action, opts) {
 
       case 'elements': {
         const sel = 'a[href],button,input:not([type=hidden]),textarea,select,summary,' +
-          '[role=button],[role=link],[role=tab],[role=menuitem],[role=checkbox],[role=option],' +
+          '[role=button],[role=link],[role=tab],[role=menuitem],[role=checkbox],[role=option],[role=radio],[role=switch],' +
           '[contenteditable=""],[contenteditable=true],[onclick]';
         document.querySelectorAll('[data-mbm]').forEach((e) => e.removeAttribute('data-mbm'));
         const lines = [];

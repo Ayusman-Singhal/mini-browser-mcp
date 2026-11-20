@@ -50,6 +50,9 @@ so your sessions are already there — while guard rails keep the agent inside i
 | `type` | Type into an input, optionally submit |
 | `scroll` | Scroll up, down, top or bottom |
 | `screenshot` | JPEG of a tab (visible part, or full page up to 6000 px) |
+| `upload_file` | Attach local files to a file input, e.g. a video upload (needs `confirm`, Chromium only) |
+| `browsers_list` | List browsers running the extension and which one is in control |
+| `browser_select` | Move control to another connected browser |
 
 When `tabId` is left out, the tool uses the active tab.
 
@@ -112,6 +115,21 @@ safely. The two complement each other.
 - **Paired extension only (server).** The first `chrome-extension://` and the first
   `moz-extension://` origin that connect are saved in `~/.mini-browser-mcp/allowed-origins.json`.
   Any other extension is refused. Delete that file to pair again (for example after a reinstall).
+
+## Several browsers
+
+You can run the extension in more than one browser at the same time (for example Brave and Chrome).
+All of them stay connected to the server. One is **in control** (badge **ON**); the others wait on
+**standby** (badge **WAIT**) instead of retrying in a loop. A browser that starts later never takes over
+a running session by itself.
+
+To switch, click the extension icon:
+
+- **Control this browser** (in a standby browser) moves control here.
+- **Let the other browser control** (in the browser in control) steps aside.
+
+Or ask the agent: it can call `browsers_list` and `browser_select`. Agent tabs stay in the browser that
+opened them; after switching, the agent opens new tabs in the browser now in control.
 
 ## Notes
 

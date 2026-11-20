@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Mini Browser MCP</title>
+  <style>
+    :root {
+      --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0;
+      --on: #1a7f37; --wait: #6e7781; --off: #b54708; --btn: #1f2328; --btn-fg: #ffffff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #161b22; --fg: #e6edf3; --muted: #9198a1; --line: #30363d;
+        --on: #3fb950; --wait: #9198a1; --off: #d29922; --btn: #e6edf3; --btn-fg: #161b22;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; width: 280px; padding: 14px 16px 16px; background: var(--bg); color: var(--fg);
+      font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    h1 { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
+    .status { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--off); flex: none; }
+    .dot.on { background: var(--on); }
+    .dot.wait { background: var(--wait); }
+    p { margin: 6px 0 0; color: var(--muted); }
+    ul { margin: 8px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+    li { padding: 6px 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; }
+    li span:last-child { color: var(--muted); }
+    button {
+      display: block; width: 100%; margin-top: 12px; padding: 8px 10px; border-radius: 6px;
+      border: 1px solid var(--btn); background: var(--btn); color: var(--btn-fg);
+      font: inherit; font-weight: 600; cursor: pointer;
+    }
+    button.secondary { background: transparent; color: var(--fg); border-color: var(--line); }
+    button:focus-visible { outline: 2px solid var(--on); outline-offset: 2px; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <h1>Mini Browser MCP</h1>
+  <div class="status"><span class="dot" id="dot"></span><span id="state">Checking…</span></div>
+  <p id="detail"></p>
+  <ul id="others" hidden></ul>
+  <button id="control" hidden>Control this browser</button>
+  <button id="release" class="secondary" hidden>Let the other browser control</button>
+  <button id="access" class="secondary" hidden>Allow access to all websites</button>
+  <button id="reconnect" class="secondary" hidden>Retry connection</button>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -51,7 +51,7 @@ const unknown = await rpc('initialize', { protocolVersion: '2099-01-01', capabil
 check(unknown.result?.protocolVersion === '2025-06-18', 'unsupported version falls back');
 
 const list = await rpc('tools/list', {});
-check(list.result?.tools?.length === 10, `tools/list (${list.result?.tools?.length} tools)`);
+check(list.result?.tools?.length === 13, `tools/list (${list.result?.tools?.length} tools)`);
 
 // Every tool must declare all four hints as explicit booleans, plus a title.
 const HINTS = ['readOnlyHint', 'destructiveHint', 'idempotentHint', 'openWorldHint'];
@@ -93,6 +93,7 @@ fake.on('message', (d) => {
     case 'type': return ok('typed into input');
     case 'scroll': return ok('scrolled to 100');
     case 'screenshot': return ok({ image: 'data:image/jpeg;base64,QUJD' });
+    case 'upload_file': return ok('attached 1 file(s)');
     default: return ok('ok');
   }
 });
@@ -101,23 +102,47 @@ await sleep(200);
 const tabs = await rpc('tools/call', { name: 'tabs_list', arguments: {} });
 check(/x\.test/.test(tabs.result?.content?.[0]?.text), 'tabs_list relayed');
 
-// A second extension must be refused while one is connected (no connection fighting).
-const secondAnswered = await new Promise((res) => {
-  const second = new WebSocket(`ws://127.0.0.1:${PORT}`, { origin: 'moz-extension://def' });
-  second.on('message', () => res(true));
-  second.on('open', () => second.send(JSON.stringify({ id: 999, method: 'tabs_list' })));
-  second.on('error', () => res(false));
-  setTimeout(() => res(false), 2000);
+// A second browser waits on standby: it gets state messages, never the calls.
+const second = new WebSocket(`ws://127.0.0.1:${PORT}`, { origin: 'moz-extension://def' });
+const secondStates = [];
+let secondGotCall = false;
+second.on('message', (d) => {
+  const m = JSON.parse(d);
+  if (m.type === 'state') secondStates.push(m); else secondGotCall = true;
 });
-await sleep(200);
+await new Promise((r) => second.on('open', r));
+second.send(JSON.stringify({ type: 'hello', name: 'Firefox' }));
+await sleep(300);
 const still = await rpc('tools/call', { name: 'tabs_list', arguments: {} });
-check(!secondAnswered && !still.result?.isError, 'second extension refused, original keeps the session');
+check(!still.result?.isError && !secondGotCall && secondStates.at(-1)?.active === false,
+  'second browser waits on standby, original keeps the session');
+
+const listed = await rpc('tools/call', { name: 'browsers_list', arguments: {} });
+const ltext = listed.result?.content?.[0]?.text || '';
+check(/\(in control\)/.test(ltext) && /Firefox \(standby\)/.test(ltext), 'browsers_list shows control and standby');
+const secondId = secondStates.at(-1)?.id;
+const firstId = Number((ltext.match(/#(\d+) [^\n]*\(in control\)/) || [])[1]);
+
+const sel = await rpc('tools/call', { name: 'browser_select', arguments: { id: secondId } });
+await sleep(200);
+check(!sel.result?.isError && secondStates.at(-1)?.active === true, 'browser_select moves control');
+second.send(JSON.stringify({ type: 'release' }));
+await sleep(300);
+const back = await rpc('tools/call', { name: 'tabs_list', arguments: {} });
+check(!back.result?.isError && /x\.test/.test(back.result?.content?.[0]?.text), 'release hands control back');
+const unknownBrowser = await rpc('tools/call', { name: 'browser_select', arguments: { id: 999 } });
+check(unknownBrowser.result?.isError, 'browser_select refuses an unknown id');
 
 const shot = await rpc('tools/call', { name: 'screenshot', arguments: {} });
 check(shot.result?.content?.[0]?.type === 'image' && shot.result.content[0].data === 'QUJD', 'screenshot becomes image content');
 
 const click = await rpc('tools/call', { name: 'click', arguments: { index: 9 } });
 check(click.result?.isError && /No element/.test(click.result.content[0].text), 'extension error relayed');
+
+const missingFile = await rpc('tools/call', { name: 'upload_file', arguments: { paths: [path.join(ROOT, 'no-such-file.mp4')], confirm: true } });
+check(missingFile.result?.isError && /File not found/.test(missingFile.result.content[0].text), 'upload_file refuses a missing file');
+const relative = await rpc('tools/call', { name: 'upload_file', arguments: { paths: ['package.json'], confirm: true } });
+check(relative.result?.isError && /absolute/.test(relative.result.content[0].text), 'upload_file refuses a relative path');
 
 // Exercise every declared tool end to end through the relay.
 const TOOL_ARGS = {
@@ -131,6 +156,9 @@ const TOOL_ARGS = {
   type: { index: 1, text: 'hi' },
   scroll: { direction: 'down' },
   screenshot: {},
+  upload_file: { paths: [path.join(ROOT, 'package.json')], confirm: true },
+  browsers_list: {},
+  browser_select: { id: firstId },
 };
 for (const tool of list.result.tools) {
   const args = TOOL_ARGS[tool.name];
