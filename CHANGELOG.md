@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.7
+
+- New tool `press_keys`: types text and presses keys (Enter, Tab, Escape, arrows, `ctrl+a`, ...) in the
+  focused element through real keyboard input. Reaches shadow DOM such as date pickers and rich editors.
+  Pressing Enter needs `confirm`.
+- New tool `click_at`: real mouse click at a point from a screenshot, for elements that `page_elements`
+  cannot list (shadow DOM, canvas, custom widgets). The element under the point is checked first, so
+  submit-like targets still need `confirm`.
+- Both use the DevTools protocol and need a Chromium browser (Chrome, Edge, Brave).
+
 ## 0.5.6
 
 - Several browsers at once: every browser running the extension stays connected. One is in

@@ -51,7 +51,7 @@ const unknown = await rpc('initialize', { protocolVersion: '2099-01-01', capabil
 check(unknown.result?.protocolVersion === '2025-06-18', 'unsupported version falls back');
 
 const list = await rpc('tools/list', {});
-check(list.result?.tools?.length === 13, `tools/list (${list.result?.tools?.length} tools)`);
+check(list.result?.tools?.length === 15, `tools/list (${list.result?.tools?.length} tools)`);
 
 // Every tool must declare all four hints as explicit booleans, plus a title.
 const HINTS = ['readOnlyHint', 'destructiveHint', 'idempotentHint', 'openWorldHint'];

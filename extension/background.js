@@ -350,6 +350,110 @@ async function debuggerUpload(tabId, selector, files) {
   }
 }
 
+// ---------- Real input through the DevTools protocol ----------
+// These reach places the DOM helpers cannot: shadow DOM (date pickers, custom editors) and
+// pages that ignore synthetic events. Chromium only.
+
+const KEYS = {
+  enter: ['Enter', 'Enter', 13, '\r'], tab: ['Tab', 'Tab', 9], escape: ['Escape', 'Escape', 27], esc: ['Escape', 'Escape', 27],
+  backspace: ['Backspace', 'Backspace', 8], delete: ['Delete', 'Delete', 46], space: [' ', 'Space', 32, ' '],
+  arrowup: ['ArrowUp', 'ArrowUp', 38], arrowdown: ['ArrowDown', 'ArrowDown', 40],
+  arrowleft: ['ArrowLeft', 'ArrowLeft', 37], arrowright: ['ArrowRight', 'ArrowRight', 39],
+  home: ['Home', 'Home', 36], end: ['End', 'End', 35], pageup: ['PageUp', 'PageUp', 33], pagedown: ['PageDown', 'PageDown', 34],
+};
+const MODS = { alt: 1, ctrl: 2, control: 2, meta: 4, cmd: 4, shift: 8 };
+
+function parseKey(spec) {
+  const parts = String(spec).split('+').map((s) => s.trim()).filter(Boolean);
+  const name = parts.pop() || '';
+  let modifiers = 0;
+  for (const m of parts) {
+    if (!(m.toLowerCase() in MODS)) throw new Error(`Unknown modifier "${m}" in "${spec}"`);
+    modifiers |= MODS[m.toLowerCase()];
+  }
+  const known = KEYS[name.toLowerCase()];
+  if (known) return { key: known[0], code: known[1], vk: known[2], text: modifiers ? undefined : known[3], modifiers };
+  if (name.length === 1) {
+    const up = name.toUpperCase();
+    const code = /[A-Z]/.test(up) ? `Key${up}` : /[0-9]/.test(name) ? `Digit${name}` : undefined;
+    return { key: name, code, vk: up.charCodeAt(0), text: modifiers & ~MODS.shift ? undefined : name, modifiers };
+  }
+  throw new Error(`Unknown key "${spec}". Use names like Enter, Tab, Escape, ArrowDown, Backspace, or ctrl+a.`);
+}
+
+async function withDebugger(tabId, fn) {
+  const target = { tabId };
+  await chrome.debugger.attach(target, '1.3');
+  try {
+    return await fn((method, params) => chrome.debugger.sendCommand(target, method, params));
+  } finally {
+    await chrome.debugger.detach(target).catch(() => {});
+  }
+}
+
+async function debuggerKeys(tabId, text, keys) {
+  return withDebugger(tabId, async (send) => {
+    const done = [];
+    if (text) {
+      await send('Input.insertText', { text });
+      done.push(`typed ${text.length} characters`);
+    }
+    for (const spec of keys || []) {
+      const k = parseKey(spec);
+      const base = { key: k.key, code: k.code, windowsVirtualKeyCode: k.vk, nativeVirtualKeyCode: k.vk, modifiers: k.modifiers };
+      await send('Input.dispatchKeyEvent', { ...base, type: k.text ? 'keyDown' : 'rawKeyDown', text: k.text, unmodifiedText: k.text });
+      await send('Input.dispatchKeyEvent', { ...base, type: 'keyUp' });
+      done.push(spec);
+    }
+    return done.length ? `pressed: ${done.join(', ')}` : 'nothing to press';
+  });
+}
+
+// What a click at (x, y) would hit, looking through shadow roots, for the submit guard.
+function describePointExpr(x, y) {
+  return `(() => {
+    let el = document.elementFromPoint(${x}, ${y});
+    while (el && el.shadowRoot) {
+      const inner = el.shadowRoot.elementFromPoint(${x}, ${y});
+      if (!inner || inner === el) break;
+      el = inner;
+    }
+    if (!el) return null;
+    const sel = 'a,button,[role=button],[role=link],[role=menuitem],[role=tab],[role=radio],[role=checkbox],[role=option],input,label,summary';
+    let t = el;
+    for (let i = 0; i < 6 && t; i++) {
+      if (t.matches && t.matches(sel)) break;
+      t = t.parentElement || (t.getRootNode && t.getRootNode().host) || null;
+    }
+    const target = t || el;
+    const text = String(target.innerText || target.value || (target.getAttribute && target.getAttribute('aria-label')) || '')
+      .replace(/\\s+/g, ' ').trim().slice(0, 200);
+    return { tag: target.tagName, text, type: target.type || '', form: !!target.form };
+  })()`;
+}
+
+async function debuggerClickAt(tabId, x, y, confirm) {
+  return withDebugger(tabId, async (send) => {
+    const { result: dpr } = await send('Runtime.evaluate', { expression: 'window.devicePixelRatio', returnByValue: true });
+    // Screenshots are in device pixels; input events use CSS pixels.
+    const cx = x / (dpr?.value || 1);
+    const cy = y / (dpr?.value || 1);
+    const { result } = await send('Runtime.evaluate', { expression: describePointExpr(cx, cy), returnByValue: true });
+    const hit = result?.value;
+    if (!hit) throw new Error(`Nothing at (${x}, ${y}). Coordinates are in screenshot pixels.`);
+    const label = `${hit.tag.toLowerCase()} "${hit.text.slice(0, 80)}"`;
+    const risky = (hit.type === 'submit' && hit.form) || new RegExp(RISKY_WORDS, 'i').test(hit.text);
+    if (risky && confirm !== true) {
+      throw new Error(`BLOCKED: ${label} looks like a submit or irreversible action. Ask the user in chat; only after they say yes, repeat the call with confirm: true.`);
+    }
+    const ev = { x: cx, y: cy, button: 'left', clickCount: 1 };
+    await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: cx, y: cy });
+    await send('Input.dispatchMouseEvent', { type: 'mousePressed', ...ev });
+    await send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...ev });
+    return `clicked ${label} at (${x}, ${y})`;
+  });
+}
+
 // Firefox / Zen: tabs.captureTab works on background tabs and can capture the full page.
 async function firefoxShot(tabId, fullPage) {
   const opts = { format: 'jpeg', quality: 70 };
@@ -371,7 +475,8 @@ const captchaNote = (c) =>
 
 // ---------- Commands ----------
 
-const NEEDS_SITE_ACCESS = new Set(['page_text', 'page_elements', 'click', 'type', 'scroll', 'screenshot', 'upload_file']);
+const NEEDS_SITE_ACCESS = new Set(['page_text', 'page_elements', 'click', 'type', 'scroll', 'screenshot', 'upload_file',
+  'press_keys', 'click_at']);
 
 async function run(method, p) {
   if (NEEDS_SITE_ACCESS.has(method)) await requireSiteAccess();
@@ -470,6 +575,29 @@ async function run(method, p) {
       await assertNoCaptcha(tab.id);
       const res = await inFrames(tab.id, 'scroll', p);
       return res.map((r) => r.result).filter((s) => typeof s === 'string' && !s.startsWith('nothing')).join('\n') || 'nothing to scroll';
+    }
+    case 'press_keys': {
+      if (!chrome.debugger) throw new Error('press_keys needs a Chromium browser (Chrome, Edge, Brave).');
+      const keys = Array.isArray(p.keys) ? p.keys : [];
+      // Enter can submit a form, so it gets the same guard as a submit click.
+      if (keys.some((k) => /(^|\+)\s*enter\s*$/i.test(String(k))) && p.confirm !== true) {
+        throw new Error('BLOCKED: pressing Enter can submit a form. Ask the user in chat; only after they say yes, ' +
+          'repeat the call with confirm: true.');
+      }
+      const tab = await getTab(p.tabId);
+      await assertNoCaptcha(tab.id);
+      const r = await debuggerKeys(tab.id, typeof p.text === 'string' ? p.text : '', keys);
+      await sleep(300);
+      return r;
+    }
+    case 'click_at': {
+      if (!chrome.debugger) throw new Error('click_at needs a Chromium browser (Chrome, Edge, Brave).');
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) throw new Error('x and y must be numbers (screenshot pixels).');
+      const tab = await getTab(p.tabId);
+      await assertNoCaptcha(tab.id);
+      const r = await debuggerClickAt(tab.id, p.x, p.y, p.confirm);
+      await sleep(600);
+      return r;
     }
     case 'upload_file': {
       if (p.confirm !== true) {

@@ -51,6 +51,8 @@ so your sessions are already there — while guard rails keep the agent inside i
 | `scroll` | Scroll up, down, top or bottom |
 | `screenshot` | JPEG of a tab (visible part, or full page up to 6000 px) |
 | `upload_file` | Attach local files to a file input, e.g. a video upload (needs `confirm`, Chromium only) |
+| `press_keys` | Real keyboard input in the focused element, reaches shadow DOM (Enter needs `confirm`, Chromium only) |
+| `click_at` | Real click at a screenshot point, for elements not in `page_elements` (guarded, Chromium only) |
 | `browsers_list` | List browsers running the extension and which one is in control |
 | `browser_select` | Move control to another connected browser |
 
